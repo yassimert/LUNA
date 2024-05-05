@@ -12,4 +12,4 @@ This software implements the newly proposed vector encryption scheme Half-GSW (H
 
 Please download the files to your home folder. The implementation can be built and run from a Linux Terminal with the given chain of commands:
 
-`cd ~/HGSW/build && cmake .. && cd ~/HGSW/build && make && cd ~/HGSW/build/hgsw/bin/ && ./HGSW_test`
+`cd ~/LUNA/HGSW/build && cmake .. && cd ~/LUNA/HGSW/build && make && cd ~/LUNA/HGSW/build/hgsw/bin/ && ./HGSW_test`
