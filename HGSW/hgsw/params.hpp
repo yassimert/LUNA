@@ -9,7 +9,7 @@ namespace hgsw_params {
     public:
         static constexpr const uint16_t n = 81; 
         static constexpr const uint16_t p = 19;
-        static constexpr const uint16_t nu = 64; 
+        static constexpr const uint16_t nu = 65; 
         static constexpr const uint16_t mq = 7;
         static constexpr const uint16_t d = 32; 
         static constexpr const uint16_t s = 2;
@@ -26,10 +26,10 @@ namespace hgsw_params {
         static constexpr const uint16_t zero = 0;
         
         static constexpr const double sig_s = 0.797884560802839;  
-        static constexpr const double sig_r = 409267155276.139; 
+        static constexpr const double sig_r = 330131978030.945; 
         
         static constexpr const uint64_t q = 8385702506153902099ULL;
-        static constexpr const uint64_t m[3] = {2048, 8192, 32768}; // m = 2 * Ng
+        static constexpr const uint64_t m[3] = {2080, 8190, 32760}; // m = 2 * Ng
 
         static constexpr const uint64_t qpr = 1183187;
         static constexpr const uint64_t qprop = 62273; // qpr / p    
