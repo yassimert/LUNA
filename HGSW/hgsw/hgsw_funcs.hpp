@@ -9,40 +9,38 @@ using namespace lbcrypto;
 using namespace hgsw_params;
 
 namespace hgsw_funcs {
-    static inline uint64_t rp(__uint128_t a, __uint128_t b, const uint64_t q, const __uint128_t r)
+    static inline uint64_t rp(__uint128_t a, __uint128_t b, const uint64_t q, const __uint128_t r) // Plantard's modular reduction mod p
     {
 	    __uint128_t c;
 	    c = a * b * r;
 	    return (((c >> prm::rp_shift) + 1) * q) >> prm::rp_shift;
     }
 
-    static inline uint64_t rp_const(__uint128_t a, __uint128_t b, const uint64_t q)
+    static inline uint64_t rp_const(__uint128_t a, __uint128_t b, const uint64_t q) // auxiliary function to perform NTT on plantard form
     {
 	    __uint128_t c;
 	    c = a * b;
 	    return (((c >> prm::rp_shift) + 1) * q) >> prm::rp_shift;
     }
 
-    /* x - q if x >= q */
-    static inline uint64_t con_sub(const uint64_t x, const uint64_t q)
+    static inline uint64_t con_sub(const uint64_t x, const uint64_t q) // x - q if x >= q
     {
 	    return x - ((-(1 ^ ((x - q) >> 63))) & q);
     }
 
-    /* x + q if x <= 0 */
-    static inline uint64_t con_add(const uint64_t x, const uint64_t q)
+    static inline uint64_t con_add(const uint64_t x, const uint64_t q) // x + q if x <= 0
     {
 	    return x + ((-(x >> 63)) & q);
     }
 
-    static inline uint16_t rp(uint32_t a)
+    static inline uint16_t rp(uint32_t a) // auxiliary function used in multiplication mod p in Plantard form  
     {
 	    uint32_t c;
 	    c = a * 226050911;
 	    return (((c >> 16) + 1) * prm::p) >> 16;
     }
 
-    static void rp_mulp(uint16_t *out, const uint16_t *a, const uint16_t *b)
+    static void rp_mulp(uint16_t *out, const uint16_t *a, const uint16_t *b) // multiplication mod p in Plantard form
     {
 	    size_t rp_len = prm::d / 2;
 	    int16_t c[prm::d * 2] = {0}, z[prm::d] = {0};
@@ -52,60 +50,51 @@ namespace hgsw_funcs {
 	    const uint16_t p0 = prm::p * 546;
 
 	    /* Layer 1 Karatsuba+schoolbook multiplication */
-	    for (i = 0; i < rp_len; i++)
-	    {
+	    for (i = 0; i < rp_len; i++) {
 		    a1[i] = a[i] - a[i + rp_len];
 		    b1[i] = b[i + rp_len] - b[i];
 	    }
-	    for (i = 0; i < rp_len; i++)
-	    {
-		    for (j = 0; j < rp_len; j++)
-		    {
+	    for (i = 0; i < rp_len; i++) {
+		    for (j = 0; j < rp_len; j++) {
 			    c[i + j] = c[i + j] + a[i] * b[j];
 			    c[i + j + prm::d] = c[i + j + prm::d] + a[i + rp_len] * b[j + rp_len];
 			    z[i + j] = z[i + j] + a1[i] * b1[j];
 		    }
 	    }
-	    for (i = 0; i < rp_len; i++)
-	    {
+	    for (i = 0; i < rp_len; i++) {
 		    x = c[i + rp_len] + c[i + prm::d];
 		    c[i + rp_len] = x + c[i] + z[i];
 		    c[i + prm::d] = x + c[i + rp_len * 3] + z[i + rp_len];
 	    }
 
 	    /* mod p mod x^d+1 */
-	    for (i = 0; i < prm::d; i++)
-	    {
+	    for (i = 0; i < prm::d; i++) {
 		    out[i] = rp(c[i] - c[i + prm::d] + p0);
 	    }
     }
 
     /* Cooley-Tukey NTT */
-    void NTT(uint64_t *a, const uint64_t q, const __uint128_t conv_fact, const __uint128_t *root)
+    void NTT(uint64_t *a, const uint64_t q, const __uint128_t conv_fact, const __uint128_t *root) // Number Theoretic Transform working on Plantard form
     {
 	    uint64_t t = prm::d >> 1;
 	    uint64_t m, i, j;
 	    uint64_t j1, j2;
 	    uint64_t x, u;
 	    
-	    for (j = 0; j < t; j++)
-	    {
+	    for (j = 0; j < t; j++) {
 		    x = rp_const(a[j], conv_fact, q);
 		    u = rp_const(a[j + t], root[1], q);
 		    a[j] = con_sub(x + u, q);
 		    a[j + t] = con_add(x - u, q);
 	    }
 	    
-	    for (m = 2; m < (prm::d >> 1); m <<= 1)
-	    {
+	    for (m = 2; m < (prm::d >> 1); m <<= 1) {
 		    t >>= 1;
-		    for (i = 0; i < m; i++)
-		    {
+		    for (i = 0; i < m; i++) {
 			    j1 = (i * t) << 1;
 			    j2 = j1 + t - 1;
 			    
-			    for (j = j1; j <= j2; j++)
-			    {
+			    for (j = j1; j <= j2; j++) {
 				    x = a[j];
 				    u = rp_const(a[j + t], root[m + i], q);
 				    a[j] = con_sub(x + u, q);
@@ -114,8 +103,7 @@ namespace hgsw_funcs {
 		    }
 	    }
 
-	    for (i = 0; i < m; i++)
-	    {
+	    for (i = 0; i < m; i++) {
 		    j = i << 1;
 		    
 		    x = a[j];
@@ -126,7 +114,7 @@ namespace hgsw_funcs {
     }
 
     /* Gentleman-Sande INTT */
-    void INTT(uint64_t *a, const uint64_t q, const __uint128_t inv_n, const __uint128_t *root_inv)
+    void INTT(uint64_t *a, const uint64_t q, const __uint128_t inv_n, const __uint128_t *root_inv) // Inverse Number Theoretic Transform working on Plantard form
     {
 	    uint64_t t = 2;
 	    uint64_t m, i, j;
@@ -134,8 +122,7 @@ namespace hgsw_funcs {
 	    uint64_t h = prm::d >> 1;
 	    uint64_t x, y;
 	    
-	    for (i = 0; i < h; i++)
-	    {
+	    for (i = 0; i < h; i++) {
 		    j = i << 1;
 		    
 		    x = con_sub(a[j] + a[j + 1], q);
@@ -144,17 +131,14 @@ namespace hgsw_funcs {
 		    a[j + 1] = rp_const(y, root_inv[h + i], q);
 	    }
 	    
-	    for (m = prm::d >> 1; m > 2; m >>= 1)
-	    {
+	    for (m = prm::d >> 1; m > 2; m >>= 1) {
 		    j1 = 0;
 		    h >>= 1;
 
-		    for (i = 0; i < h; i++)
-		    {
+		    for (i = 0; i < h; i++) {
 			    j2 = j1 + t - 1;
 			    
-			    for (j = j1; j <= j2; j++)
-			    {
+			    for (j = j1; j <= j2; j++) {
 				    x = con_sub(a[j] + a[j + t], q);
 				    y = con_add(a[j] - a[j + t], q);
 				    a[j] = x;
@@ -165,8 +149,7 @@ namespace hgsw_funcs {
 		    t <<= 1;
 	    }
 
-	    for (j = 0; j < t; j++)
-	    {
+	    for (j = 0; j < t; j++) {
 		    x = con_sub(a[j] + a[j + t], q);
 		    y = con_add(a[j] - a[j + t], q);
 		    a[j] = rp_const(x, inv_n, q);
@@ -192,7 +175,7 @@ namespace hgsw_funcs {
             return this->mat[i];
         }
 
-        inline mat_hgsw &gen_gT_p() {
+        inline mat_hgsw &gen_gT_p() { // generate gT vector in NTT form
             for (uint32_t j = 0; j < COLUMN; j++) {
                 this->mat[0][j][0] = (uint64_t)pow(prm::beta, j) % prm::p;
                 NTT(this->mat[0][j], prm::qbar, prm::rp_conv_fact_qbar, prm::root_qbar);
@@ -200,7 +183,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &gen_qi() {
+        inline mat_hgsw &gen_qi() { // generate an uniformly distributed random qi vector
             uint8_t seed[prm::d];
 	        aes256ctr_ctx ctx;
 	        randombytes(seed, prm::d);
@@ -211,7 +194,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &gen_a() {
+        inline mat_hgsw &gen_a() { // generate scaling factor a with uniform distribution
             uint8_t seed[prm::d];
 	        aes256ctr_ctx ctx;
 	        randombytes(seed, prm::d);
@@ -220,7 +203,7 @@ namespace hgsw_funcs {
             return *this;
         }
         
-        inline mat_hgsw &get_f_arr() {
+        inline mat_hgsw &get_f_arr() { // fill f_arr which is used in the polynomial modular reduction in CRT Encode
             for (uint32_t i = 0; i < COLUMN; i++) {
                 for (uint32_t j = 0; j < prm::d; j++) {
                     this->mat[0][i][j] = 0;
@@ -234,7 +217,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &print_matrix() {
+        inline mat_hgsw &print_matrix() { // function to print a matrin in the form of mat_hgsw
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < prm::d; k++) {
@@ -247,7 +230,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &sample_matrix_uniform_p() {
+        inline mat_hgsw &sample_matrix_uniform_p() { // output a uniformly distributed random matrix mod p 
             uint8_t seed[32];
             aes256ctr_ctx ctx;           
             randombytes(seed, prm::d);
@@ -260,7 +243,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &sample_matrix_gaussian(DiscreteGaussianGenerator dgg) { 
+        inline mat_hgsw &sample_matrix_gaussian(DiscreteGaussianGenerator dgg) {  // output a matrix mod q generated via discrete gaussian distribution
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < prm::d; k++) {
@@ -273,7 +256,7 @@ namespace hgsw_funcs {
 
         template <uint32_t C2>
         inline mat_hgsw<T, prm, ROW, C2>
-        operator*(const mat_hgsw<T, prm, COLUMN, C2> &o) const {
+        operator*(const mat_hgsw<T, prm, COLUMN, C2> &o) const { // multiply given two matrices in NTT form mod qbar
             mat_hgsw<T, prm, ROW, C2> res;
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < C2; j++) {
@@ -289,7 +272,7 @@ namespace hgsw_funcs {
             return res;
         }
         
-        inline mat_hgsw &operator+=(const mat_hgsw &o) {
+        inline mat_hgsw &operator+=(const mat_hgsw &o) { // add given two matrices in NTT form mod qbar
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < prm::d; k++) {
@@ -300,7 +283,7 @@ namespace hgsw_funcs {
             return *this;
         }
 
-        inline mat_hgsw &add_mod(const mat_hgsw &o, uint64_t modulus) {
+        inline mat_hgsw &add_mod(const mat_hgsw &o, uint64_t modulus) { // add given two matrices according to given modulo
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < prm::d; k++) {
@@ -312,7 +295,7 @@ namespace hgsw_funcs {
         }
         
         template <uint32_t C2>
-        inline mat_hgsw &mul_mod_qprop(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) {
+        inline mat_hgsw &mul_mod_qprop(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) { // multiply given two matrices in NTT form mod qpr/p 
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < C2; k++) {
@@ -328,7 +311,7 @@ namespace hgsw_funcs {
         } 
         
         template <uint32_t C2>
-        inline mat_hgsw &mul_modp(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) {
+        inline mat_hgsw &mul_modp(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) { // multiply given two matrices mod p
             for (uint32_t i = 0; i < ROW; i++) {
                 for (uint32_t j = 0; j < COLUMN; j++) {
                     for (uint32_t k = 0; k < C2; k++) {
@@ -343,7 +326,7 @@ namespace hgsw_funcs {
             return *this;       
         }  
 
-        inline mat_hgsw &compute_Hit_p(const mat_hgsw<T, prm, 1, COLUMN> &mat1, const mat_hgsw<T, prm, 1, ROW> &mat2) {
+        inline mat_hgsw &compute_Hit_p(const mat_hgsw<T, prm, 1, COLUMN> &mat1, const mat_hgsw<T, prm, 1, ROW> &mat2) { // special function to perform the operation at Appx.F Alg.2 Line 6-7 
             for (uint32_t i = 0; i < COLUMN; i++) { 
                 for (uint32_t j = 0; j < ROW; j++) { 
                     for (uint32_t k = 0; k < prm::d; k++) {
@@ -355,7 +338,7 @@ namespace hgsw_funcs {
             return *this;       
         }      
         
-        inline mat_hgsw &scale_convert(const mat_hgsw<T, prm, ROW, COLUMN> &H_bar) { 
+        inline mat_hgsw &scale_convert(const mat_hgsw<T, prm, ROW, COLUMN> &H_bar) { // special function to perform the operation at Appx.F Alg.4 Line 6
             for (uint32_t i = 0; i < COLUMN; i++) {
                 for (uint32_t j = 0; j < prm::d; j++){ 
                     double dblval = H_bar[0][i][j];
@@ -365,7 +348,7 @@ namespace hgsw_funcs {
             return *this;       
         }  
         
-        inline mat_hgsw &get_PHI_matrix(int idx, int inv) {
+        inline mat_hgsw &get_PHI_matrix(int idx, int inv) { // copy contents of constant PHI matrix to the given matrix
             if(inv == 0){
                 for (uint64_t i = 0; i < ROW; i++) {
                     for (uint64_t j = 0; j < COLUMN; j++){
@@ -383,7 +366,7 @@ namespace hgsw_funcs {
         }
 
         template <uint32_t C2>
-        inline mat_hgsw &mul_NTT_qpr(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) {
+        inline mat_hgsw &mul_NTT_qpr(const mat_hgsw<T, prm, ROW, C2> &mat1, const mat_hgsw<T, prm, C2, COLUMN> &mat2) { // special function to perform the operation at Appx.F Alg.4 Line 5
             mat_hgsw<T, prm, ROW, COLUMN> res_first, res_second;
             mat_hgsw<T, prm, ROW, C2> mat1_first, mat1_second;
             mat_hgsw<T, prm, C2, COLUMN> mat2_first, mat2_second;
@@ -432,11 +415,11 @@ namespace hgsw_funcs {
     };
 
     template <typename Zq, typename zp, class prm>
-    void sample_matrix_uniform(pair<mat_hgsw<Zq, prm, prm::mq, prm::n>, mat_hgsw<Zq, prm, prm::mq, prm::n>> *At, aes256ctr_ctx ctx, uint16_t t) {
+    void sample_matrix_uniform(pair<mat_hgsw<Zq, prm, prm::mq, prm::n>, mat_hgsw<Zq, prm, prm::mq, prm::n>> *At, aes256ctr_ctx ctx, uint16_t t) { // fill the given matrix by performing uniform sampling, work in NTT form
         for (uint32_t i = 0; i < prm::m[t]; i++) {
             for (uint32_t j = 0; j < prm::mq; j++) {
                 for (uint32_t k = 0; k < prm::n; k++) {
-                    uni_sampler_zzp_1d_ppr(At[i].first[j][k], prm::d, &ctx);
+                    uni_sampler_zzp_1d_out64(At[i].first[j][k], prm::d, &ctx);
                     NTT(At[i].first[j][k], prm::qbar, prm::rp_conv_fact_qbar, prm::root_qbar);
                     uni_sampler_zzqbar_1d(At[i].second[j][k], prm::d, &ctx);  
                 }
@@ -445,7 +428,7 @@ namespace hgsw_funcs {
     }
 
     template <typename Zq, typename zp, class prm>
-    void sample_matrix_gaussian(pair<mat_hgsw<Zq, prm, prm::mq, prm::ell_pr>, mat_hgsw<Zq, prm, prm::mq, prm::ell_pr>> *Et, DiscreteGaussianGenerator dgg, uint16_t t) {
+    void sample_matrix_gaussian(pair<mat_hgsw<Zq, prm, prm::mq, prm::ell_pr>, mat_hgsw<Zq, prm, prm::mq, prm::ell_pr>> *Et, DiscreteGaussianGenerator dgg, uint16_t t) { // fill the given matrix by performing discrete gaussian sampling, work in NTT form
         mat_hgsw<Zq, prm, prm::mq, prm::ell_pr> E[prm::m[t]];       
         for(uint64_t l = 0; l < prm::m[t]; l++) {
             for (uint32_t i = 0; i < prm::mq; i++) { 
@@ -466,7 +449,7 @@ namespace hgsw_funcs {
     }
 
     template <typename Zq, typename zp, class prm>
-    void get_St(pair<mat_hgsw<Zq, prm, prm::n, prm::ell_pr>, mat_hgsw<Zq, prm, prm::n, prm::ell_pr>> &St, mat_hgsw<Zq, prm, prm::n, prm::ell_pr> &S) {
+    void get_St(pair<mat_hgsw<Zq, prm, prm::n, prm::ell_pr>, mat_hgsw<Zq, prm, prm::n, prm::ell_pr>> &St, mat_hgsw<Zq, prm, prm::n, prm::ell_pr> &S) { // special function to create St in NTT form, using S generated in Setup
         mat_hgsw<Zq, prm, prm::n, prm::ell_pr> S_tmp;
         for (uint32_t k = 0; k < prm::n; k++) { 
             for (uint32_t i = 0; i < prm::ell_pr; i++) { 
@@ -492,7 +475,7 @@ namespace hgsw_funcs {
 
 
     template <typename Zq, typename zp, class prm>
-    auto NTT_mat(mat_hgsw<Zq, prm, 1, prm::mq> a_hatT_i_rand) { 
+    auto NTT_mat(mat_hgsw<Zq, prm, 1, prm::mq> a_hatT_i_rand) { // special function to perform the operation at Appx.F Alg.3 Line 6 
         pair<mat_hgsw<Zq, prm, 1, prm::mq>, mat_hgsw<Zq, prm, 1, prm::mq>> atT_i_rand;    
         for (uint32_t i = 0; i < prm::mq; i++) { 
             for (uint32_t j = 0; j < prm::d; j++) {     
@@ -524,7 +507,7 @@ namespace hgsw_funcs {
         return cstar;
     }
 
-    void SampleD(double sigma, size_t k, double* c, double* d, size_t base, DiscreteGaussianGenerator dgg, int64_t* z) {
+    void SampleD(double sigma, size_t k, double* c, double* d, size_t base, DiscreteGaussianGenerator dgg, int64_t* z) { // auxiliary function used in the gadget sampler
         z[k-1] = dgg.GenerateIntegerKarney(-c[k-1]/d[k-1],sigma/d[k-1]);
         for(size_t i = 0;i < k;++i){
             c[i] = c[i] - (static_cast<double>(z[k - 1])) * d[i];
@@ -534,7 +517,7 @@ namespace hgsw_funcs {
       }    
     }
 
-    void Perturb_normal_(double sigma, size_t k, double* l, double* h, double* p) {
+    void Perturb_normal_(double sigma, size_t k, double* l, double* h, double* p) { // auxiliary function used in the gadget sampler
         double z[k];
         std::normal_distribution<> d(0, sigma);
 
@@ -548,7 +531,8 @@ namespace hgsw_funcs {
         }
         p[k-1] = h[k-1]*z[k-1];
     }
-
+    
+    /* Implementation of the gadget sampler by Yang Yu: https://eprint.iacr.org/2021/1664.pdf */
     void GaussianABG_normal_(double stddev, size_t k, int64_t base, int64_t u, unsigned long long q, int64_t* t, DiscreteGaussianGenerator dgg) {
         double sigma = stddev / ((double)base + 1);
         int64_t q_digit[k];
@@ -602,7 +586,7 @@ namespace hgsw_funcs {
     }  
 
     template <typename Zq, typename zp, class prm>
-    auto g_inv_rand(mat_hgsw<zp, prm, prm::ell, 1> a) {
+    auto g_inv_rand(mat_hgsw<zp, prm, prm::ell, 1> a) { // The g^inv_rand algorithm stated in Definition 3
         DiscreteGaussianGenerator dggKarney;
         mat_hgsw<Zq, prm, 1, prm::mq> z_mat;
         for(uint32_t i = 0; i < prm::d; i++){
@@ -616,7 +600,7 @@ namespace hgsw_funcs {
     }
     
     template <typename Zq, class prm>
-    auto ModSwitch(mat_hgsw<Zq, prm, 1, prm::n + prm::ell_pr> &cstar) {
+    auto ModSwitch(mat_hgsw<Zq, prm, 1, prm::n + prm::ell_pr> &cstar) { // perform modulo switching from q to q', Appx.F Alg.3 Line 15
         mat_hgsw<Zq, prm, 1, prm::n + prm::ell_pr> cstarpr;
         for (uint32_t i = 0; i < prm::n + prm::ell_pr; i++) {
             for (uint32_t j = 0; j < prm::d; j++) { 
@@ -628,7 +612,7 @@ namespace hgsw_funcs {
     }    
     
     template <typename zp_t, class prm>
-    auto Eval_phi(mat_hgsw<zp_t, prm, prm::f, prm::f> &PHI, zp_t *aX) {
+    auto Eval_phi(mat_hgsw<zp_t, prm, prm::f, prm::f> &PHI, zp_t *aX) { // auxiliary function to correctly perform CRT Encode
         mat_hgsw<zp_t[prm::d], prm, 1, 1> res;
         for(uint32_t i = 0; i < prm::f; i++){
             uint32_t mtmp[prm::f];
@@ -643,7 +627,7 @@ namespace hgsw_funcs {
     }
 
     template <typename zp_t, class prm>
-    auto CRT_poly(mat_hgsw<zp_t[prm::d], prm, 1, 1> *residues, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) {
+    auto CRT_poly(mat_hgsw<zp_t[prm::d], prm, 1, 1> *residues, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) { // auxiliary function to correctly perform CRT Encode
         mat_hgsw<zp_t[prm::d], prm, 1, 1> res;
         zp_t del[prm::d];
         for(uint32_t j = 0; j < prm::f; j++){
@@ -662,7 +646,7 @@ namespace hgsw_funcs {
     }     
     
     template <typename zp_t, uint32_t size, class prm>
-    auto CRT_Encode(mat_hgsw<zp_t[prm::d], prm, 1, prm::w> &qi, mat_hgsw<zp_t, prm, prm::f, prm::f> *PHI, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) {
+    auto CRT_Encode(mat_hgsw<zp_t[prm::d], prm, 1, prm::w> &qi, mat_hgsw<zp_t, prm, prm::f, prm::f> *PHI, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) { // CRT encoding used both in Encrypt and Add
         mat_hgsw<zp_t[prm::d], prm, 1, 1> r_hat[prm::ell];
         uint32_t v = size / prm::ell_p;
         for(uint32_t j = 0; j < v; j++){
@@ -683,7 +667,7 @@ namespace hgsw_funcs {
     }  
 
     template <typename zp_t, uint32_t v, class prm>
-    auto CRT_Decode(mat_hgsw<zp_t[prm::d], prm, prm::ell, 1> &mu_bar, mat_hgsw<zp_t, prm, prm::f, prm::f> *PHI_pr, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) {
+    auto CRT_Decode(mat_hgsw<zp_t[prm::d], prm, prm::ell, 1> &mu_bar, mat_hgsw<zp_t, prm, prm::f, prm::f> *PHI_pr, mat_hgsw<zp_t[prm::d], prm, 1, 4> &f_arr) { // CRT decoding used both in Decrypt
         mat_hgsw<zp_t[prm::d], prm, 1, 1> r_eval[v * prm::ell_p];
         mat_hgsw<zp_t[prm::d], prm, v, prm::ell_p> res;
 
@@ -738,6 +722,7 @@ namespace hgsw_funcs {
         return res;        
     }
     
+    /* validate the result of Decrypt(q_res) by comparing it with a_i * q_i, for i = 1, 2, ..., w */
     template <typename zp, class prm>
     void validate(mat_hgsw<zp, prm, 1, 1> *a, mat_hgsw<zp, prm, 1, prm::w> *q_, mat_hgsw<zp, prm, prm::v, prm::ell_p> &q_res, mat_hgsw<zp, prm, 1, 4> &f_arr, uint16_t t) {
         mat_hgsw<zp, prm, prm::v, prm::ell_p> aq_;

@@ -4,9 +4,10 @@
 using namespace hgsw;
 using Params = hgsw_params::prm;
 
-int main() {
+/* Driver program */
+int main() { 
     
-    HGSW<Params>();
+    HGSW<Params>(); // call Half-GSW encryption scheme
  
     return 0;
 }
